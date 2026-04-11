@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Camera</title>
+
+<style>
+body {
+    text-align: center;
+    font-family: Arial;
+    background: black;
+    color: white;
+}
+
+img {
+    margin-top: 50px;
+    border: 5px solid white;
+}
+
+button {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    margin: 10px;
+}
+
+.stop { background: orange; }
+.logout { background: red; position: absolute; top:10px; right:10px; }
+</style>
+</head>
+
+<body>
+
+<!-- 🔴 LOGOUT -->
+<a href="/logout">
+    <button class="logout">Logout</button>
+</a>
+
+<h2>Camera</h2>
+
+<img src="{{ url_for('video') }}" width="600">
+
+<br>
+
+<a href="/stop">
+    <button class="stop">Stop Attendance</button>
+</a>
+
+<a href="/">
+    <button>Back</button>
+</a>
+
+</body>
+</html>
