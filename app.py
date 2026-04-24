@@ -30,17 +30,33 @@ def mark_attendance(name):
     file_path = "attendance.csv"
     now = datetime.now()
     date = now.strftime("%Y-%m-%d")
-    time = now.strftime("%H:%M:%S")
+    time_now = now.strftime("%H:%M:%S")
 
-    # Prevent duplicate for same session
+    try:
+        with open(file_path, "r") as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if len(row) < 4:
+                    continue
+                if row[0] == name and row[1] == date:
+                    return False
+    except:
+        pass
+
     with open(file_path, "a", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow([name, date, time, "Present"])
+        writer.writerow([name, date, time_now, "Present"])
+
+    return True
 
 # ---------------- CAMERA ----------------
 def generate_frames():
     cap = cv2.VideoCapture(0)
-    marked = set()
+
+    notification = ""
+    show_count = 0
+
+    marked_people = set()  # session memory
 
     while True:
         success, frame = cap.read()
@@ -63,22 +79,39 @@ def generate_frames():
             best_match_index = np.argmin(face_distances)
 
             name = "Unknown"
+            color = (0, 0, 255)  # 🔴 Red
 
             if face_distances[best_match_index] < 0.5:
                 name = known_names[best_match_index]
 
-                if name not in marked:
-                    mark_attendance(name)
-                    marked.add(name)
+                # 🟢 FIRST TIME IN SESSION → ALWAYS SHOW "Attendance Marked"
+                if name not in marked_people:
+                    notification = "Attendance Marked"
+                    color = (0, 255, 0)
+                    show_count = 25
+
+                    mark_attendance(name)  # save in CSV
+                    marked_people.add(name)
+
+                # 🟡 AFTER THAT → ONLY "Already Marked"
+                else:
+                    notification = "Already Marked"
+                    color = (0, 255, 255)
+                    show_count = 15
 
             top, right, bottom, left = face_location
 
-            # Green for known, Red for unknown
-            color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
-
             cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
+
             cv2.putText(frame, name, (left, top - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+
+        # 🔥 SHOW MESSAGE
+        if show_count > 0:
+            cv2.putText(frame, notification, (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.9, (0, 255, 255), 2)
+            show_count -= 1
 
         ret, buffer = cv2.imencode('.jpg', frame)
         frame = buffer.tobytes()
@@ -119,16 +152,16 @@ def video():
     return Response(generate_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
-# ---------------- STOP (UPDATED ✅) ----------------
+# ---------------- STOP ----------------
 @app.route('/stop')
 def stop():
-    return redirect(url_for('index'))   # 🔥 FIXED
+    return redirect(url_for('index'))
 
 # ---------------- DASHBOARD ----------------
 @app.route('/dashboard')
 def dashboard():
     data = []
-    present_count = 0
+    present_people = {}
 
     try:
         with open("attendance.csv", "r") as f:
@@ -136,12 +169,20 @@ def dashboard():
             for row in reader:
                 if len(row) < 4:
                     continue
-                data.append(row)
-                if row[3] == "Present":
-                    present_count += 1
+                name, date, time_now, status = row
+                present_people[name] = (date, time_now, status)
     except:
         pass
 
+    for name in known_names:
+        if name in present_people:
+            date, time_now, status = present_people[name]
+            data.append([name, date, time_now, status])
+        else:
+            today = datetime.now().strftime("%Y-%m-%d")
+            data.append([name, today, "-", "Absent"])
+
+    present_count = len(present_people)
     total_people = len(known_names)
     absent_count = total_people - present_count
 
